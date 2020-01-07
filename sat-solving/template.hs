@@ -32,8 +32,8 @@ lookUp item pairs
 vars :: Formula -> [Id]
 vars f
   = sort $ nub $ case f of
-                   Var id     -> [id]
-                   Not f1     -> vars f1
+                   Var id    -> [id]
+                   Not f1    -> vars f1
                    And f1 f2 -> vars f1 ++ vars f2
                    Or f1 f2  -> vars f1 ++ vars f2
 
@@ -62,11 +62,11 @@ toNNF f
   = case f of
       Not (Or f1 f2)  -> And (toNNF (Not f1)) (toNNF (Not f2))
       Not (And f1 f2) -> Or (toNNF (Not f1)) (toNNF (Not f2))
-      Not (Not f1)     -> toNNF f1
+      Not (Not f1)    -> toNNF f1
       And f1 f2       -> And (toNNF f1) (toNNF f2)
       Or f1 f2        -> Or (toNNF f1) (toNNF f2)
-      Not f1           -> Not (toNNF f1)
-      Var id           -> Var id
+      Not f1          -> Not (toNNF f1)
+      Var id          -> Var id
 
 -- 3 marks
 toCNF :: Formula -> CNF
