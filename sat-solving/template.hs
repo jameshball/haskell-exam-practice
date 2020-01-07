@@ -14,10 +14,10 @@ printF
       = v
     showF (Not f)
       = '!' : showF f
-    showF (And f f')
-      = "(" ++ showF f ++ " & " ++ showF f' ++ ")"
-    showF (Or f f')
-      = "(" ++ showF f ++ " | " ++ showF f' ++ ")"
+    showF (And f f1)
+      = "(" ++ showF f ++ " & " ++ showF f1 ++ ")"
+    showF (Or f f1)
+      = "(" ++ showF f ++ " | " ++ showF f1 ++ ")"
 
 --------------------------------------------------------------------------
 -- Part I
@@ -25,18 +25,22 @@ printF
 -- 1 mark
 lookUp :: Eq a => a -> [(a, b)] -> b
 -- Pre: The item being looked up has a unique binding in the list
-lookUp 
-  = undefined
+lookUp item pairs
+  = fromJust $ lookup item pairs
 
 -- 3 marks
 vars :: Formula -> [Id]
-vars 
-  = undefined
+vars f
+  = sort $ nub $ case f of
+                   Var id     -> [id]
+                   Not f1     -> vars f1
+                   And f1 f2 -> vars f1 ++ vars f2
+                   Or f1 f2  -> vars f1 ++ vars f2
 
 -- 1 mark
 idMap :: Formula -> IdMap
-idMap 
-  = undefined
+idMap f
+  = zip (vars f) [1..]
 
 --------------------------------------------------------------------------
 -- Part II
@@ -54,31 +58,72 @@ distribute a b
 
 -- 4 marks
 toNNF :: Formula -> NNF
-toNNF 
-  = undefined
+toNNF f
+  = case f of
+      Not (Or f1 f2)  -> And (toNNF (Not f1)) (toNNF (Not f2))
+      Not (And f1 f2) -> Or (toNNF (Not f1)) (toNNF (Not f2))
+      Not (Not f1)     -> toNNF f1
+      And f1 f2       -> And (toNNF f1) (toNNF f2)
+      Or f1 f2        -> Or (toNNF f1) (toNNF f2)
+      Not f1           -> Not (toNNF f1)
+      Var id           -> Var id
 
 -- 3 marks
 toCNF :: Formula -> CNF
-toCNF 
-  = undefined
+toCNF f
+  = toCNF' $ toNNF f
+  where
+    toCNF' f
+      = case f of
+          And f1 f2 -> And (toCNF' f1) (toCNF' f2)
+          Or f1 f2  -> distribute f1 f2
+          _         -> f
 
 -- 4 marks
 flatten :: CNF -> CNFRep
-flatten 
-  = undefined
+flatten f
+  = flatten' f
+  where
+    ids = idMap f
+    flatten' f'
+      = case f' of
+          And f1 f2    -> flatten' f1 ++ flatten' f2
+          Or f1 f2     -> [head (flatten' f1) ++ head (flatten' f2)]
+          Not (Var id) -> [[negate $ lookUp id ids]]
+          Var id       -> [[lookUp id ids]]
+
 
 --------------------------------------------------------------------------
 -- Part III
 
 -- 5 marks
 propUnits :: CNFRep -> (CNFRep, [Int])
-propUnits 
-  = undefined
+propUnits f
+  = propUnits' f (unitClauses f) []
+  where
+    propUnits' f' [] ucs
+      = (f', ucs)
+    propUnits' f' (u : cs) ucs
+      = propUnits' newf (unitClauses newf) (u : ucs)
+      where
+        newf = map (filter (/= -u)) (filter (notElem u) f')
+
+unitClauses :: CNFRep -> [Int]
+unitClauses f
+  = [u | [u] <- f]
 
 -- 4 marks
 dp :: CNFRep -> [[Int]]
-dp 
-  = undefined
+dp []
+  = [[]]
+dp f
+  | null ucs  = dp ([remvar] : f) ++ dp ([-remvar] : f)
+  | elem [] f = []
+  | otherwise = map (ucs' ++) (dp newf)
+  where
+    (newf, ucs') = propUnits f
+    ucs = unitClauses f
+    ((remvar : _) : _) = f
 
 --------------------------------------------------------------------------
 -- Part IV
