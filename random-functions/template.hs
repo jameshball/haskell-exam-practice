@@ -1,10 +1,18 @@
 filterFoldr :: (a -> Bool) -> [a] -> [a]
 filterFoldr f xs
-  = foldr (\x -> if f x then (x :) else id) [] xs
+  = foldr filter' [] xs
+  where
+    filter' x
+      | f x       = (x :)
+      | otherwise = id
 
 filterFoldl :: (a -> Bool) -> [a] -> [a]
 filterFoldl f xs
-  = foldl (\x y -> if f y then (y : x) else id x) [] xs
+  = foldl filter' [] xs
+  where
+    filter' x y
+      | f y       = (y : x)
+      | otherwise = id x
 
 inits :: [a] -> [[a]]
 inits
