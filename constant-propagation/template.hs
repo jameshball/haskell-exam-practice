@@ -36,26 +36,43 @@ execFun (name, args, p) vs
 type State = [(Id, Int)]
 
 update :: (Id, Int) -> State -> State
-update 
-  = undefined
+update (id, n) state
+  = (id, n) : filter ((/= id) . fst) state
 
 apply :: Op -> Int -> Int -> Int
-apply 
-  = undefined
+apply op n m
+  = case op of
+      Add -> n + m
+      Mul -> n * m
+      Eq  -> fromEnum $ n == m
+      Gtr -> fromEnum $ n > m
 
 eval :: Exp -> State -> Int
 -- Pre: the variables in the expression will all be bound in the given state 
 -- Pre: expressions do not contain phi instructions
-eval 
-  = undefined
+eval e state
+  = case e of
+      Const n          -> n
+      Var id           -> lookUp id state
+      Apply op e1 e2   -> apply op (eval e1 state) (eval e2 state)
 
 execStatement :: Statement -> State -> State
-execStatement 
-  = undefined
+execStatement (Assign id e) state
+  = update (id, eval e state) state
+execStatement (If e b1 b2) state
+  | toEnum $ eval e state  = execBlock b1 state
+  | otherwise              = execBlock b2 state
+execStatement (DoWhile b e) state
+  | toEnum $ eval e result = execStatement (DoWhile b e) result
+  | otherwise              = result
+  where
+    result = execBlock b state
 
 execBlock :: Block -> State -> State
-execBlock 
-  = undefined
+execBlock [] state
+  = state
+execBlock (s : b) state
+  = execBlock b (execStatement s state)
 
 ------------------------------------------------------------------------
 -- Given function for testing propagateConstants...
@@ -70,24 +87,83 @@ applyPropagate (name, args, body)
 
 foldConst :: Exp -> Exp
 -- Pre: the expression is in SSA form
-foldConst 
-  = undefined
+foldConst exp
+  = case exp of
+      Phi (Const c1) (Const c2)      -> if c1 == c2 then Const c1 else exp
+      Apply op (Const c1) (Const c2) -> Const $ apply op c1 c2
+      Apply Add (Const 0) (Var id)   -> Var id
+      Apply Add (Var id) (Const 0)   -> Var id
+      _                              -> exp
 
 sub :: Id -> Int -> Exp -> Exp
 -- Pre: the expression is in SSA form
-sub 
-  = undefined
+sub id n exp
+  = foldConst $
+      case exp of
+        Var id'          -> if id == id' then Const n else exp
+        Apply op ex1 ex2 -> Apply op (sub' ex1) (sub' ex2)
+        Phi ex1 ex2      -> Phi (sub' ex1) (sub' ex2)
+        _                -> exp
+  where
+    sub' = sub id n
 
 -- Use (by uncommenting) any of the following, as you see fit...
--- type Worklist = [(Id, Int)]
--- scan :: Id -> Int -> Block -> (Worklist, Block)
+type Worklist = [(Id, Int)]
+
 -- scan :: (Exp -> Exp) -> Block -> (Exp -> Exp, Block)
- 
+
 propagateConstants :: Block -> Block
 -- Pre: the block is in SSA form
-propagateConstants 
-  = undefined
+propagateConstants b
+  = propagateConstants' $ scan "$INVALID" 0 b
+  where
+    propagateConstants' :: (Worklist, Block) -> Block
+    propagateConstants' ([], b')
+      = b'
+    propagateConstants' ((v, c) : worklist, b')
+      = propagateConstants' $ scan v c b'
 
+subStatement :: Id -> Int -> Statement -> Statement
+subStatement id n s
+  = case s of
+      Assign id' exp -> Assign id' (sub' exp)
+      If exp b1 b2   -> If (sub' exp) (subBlock id n b1) (subBlock id n b2)
+      DoWhile b1 exp -> DoWhile (subBlock id n b1) (sub' exp)
+  where
+    sub' = sub id n
+
+subBlock id n = map (subStatement id n)
+
+scan :: Id -> Int -> Block -> (Worklist, Block)
+scan id n block@(s : b)
+  = scan' id n (subBlock id n block)
+  where
+    (wl, b') = scan id n b
+
+
+
+
+scan' id n []
+  = ([], [])
+scan' id n (Assign id' (Const n') : b)
+  = (update (id', n') wl, b')
+  where
+    (wl, b') = scan' id n b
+scan' id n (If exp b1 b2 : b)
+  = (wl ++ wl1 ++ wl2, If exp b1' b2' : b')
+  where
+    (wl1, b1') = scan' id n b1
+    (wl2, b2') = scan' id n b2
+    (wl, b') = scan' id n b
+scan' id n (DoWhile b1 exp : b)
+  = (wl ++ wl1, DoWhile b1' exp : b')
+  where
+    (wl1, b1') = scan' id n b1
+    (wl, b') = scan' id n b
+scan' id n (s : b)
+  = (wl, s : b')
+  where
+    (wl, b') = scan' id n b
 ------------------------------------------------------------------------
 -- Given functions for testing unPhi...
 
